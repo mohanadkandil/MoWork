@@ -5,197 +5,175 @@ interface KiraProps {
 }
 
 export function Kira(props: KiraProps) {
-  const [eyeOffset, setEyeOffset] = createSignal(0);
+  const [eyeY, setEyeY] = createSignal(0);
+  const [blinkClosed, setBlinkClosed] = createSignal(false);
 
+  // Eye roll animation when thinking
   createEffect(() => {
     if (props.isThinking) {
-      let direction = 1;
-      let position = 0;
+      let dir = 1;
+      let pos = 0;
       const interval = setInterval(() => {
-        position += direction * 0.3;
-        if (position >= 2.5) direction = -1;
-        if (position <= -2.5) direction = 1;
-        setEyeOffset(position);
-      }, 40);
+        pos += dir * 0.25;
+        if (pos >= 2) dir = -1;
+        if (pos <= -2) dir = 1;
+        setEyeY(pos);
+      }, 50);
       onCleanup(() => clearInterval(interval));
     } else {
-      setEyeOffset(0);
+      setEyeY(0);
     }
   });
 
+  // Occasional blink
+  createEffect(() => {
+    const blinkInterval = setInterval(() => {
+      if (!props.isThinking && Math.random() > 0.7) {
+        setBlinkClosed(true);
+        setTimeout(() => setBlinkClosed(false), 150);
+      }
+    }, 3000);
+    onCleanup(() => clearInterval(blinkInterval));
+  });
+
+  const eyeHeight = () => blinkClosed() ? 2 : 8;
+
   return (
     <svg
-      width="160"
-      height="200"
-      viewBox="0 0 160 200"
+      width="100"
+      height="125"
+      viewBox="0 0 100 125"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       class="kira-character"
+      style={{ transition: "transform 0.3s ease" }}
     >
       <defs>
-        <linearGradient id="skinGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="#d4a574" />
-          <stop offset="100%" stop-color="#c4956a" />
+        <linearGradient id="skin" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#e0b896" />
+          <stop offset="100%" stop-color="#d4a574" />
         </linearGradient>
-        <linearGradient id="hairGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#1a1a1a" />
-          <stop offset="100%" stop-color="#2d2d2d" />
+        <linearGradient id="hair" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#1c1c1e" />
+          <stop offset="100%" stop-color="#2c2c2e" />
         </linearGradient>
-        <linearGradient id="hoodieGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="#3d2a6e" />
-          <stop offset="100%" stop-color="#2a1d4d" />
+        <linearGradient id="hoodie" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#7c3aed" />
+          <stop offset="100%" stop-color="#5b21b6" />
         </linearGradient>
-        <linearGradient id="pinkGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#ff6b9d" />
-          <stop offset="100%" stop-color="#c44569" />
+        <linearGradient id="pink" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#f472b6" />
+          <stop offset="100%" stop-color="#ec4899" />
         </linearGradient>
-        <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.25"/>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
         </filter>
       </defs>
 
-      {/* Hoodie Body */}
-      <g filter="url(#softShadow)">
-        <path
-          d="M35 200 L42 135 Q80 118 118 135 L125 200"
-          fill="url(#hoodieGradient)"
-        />
-        {/* Hoodie neckline */}
-        <ellipse cx="80" cy="132" rx="28" ry="10" fill="#2a1d4d" />
-      </g>
+      {/* Hoodie */}
+      <path
+        d="M20 125 L26 82 Q50 72 74 82 L80 125"
+        fill="url(#hoodie)"
+      />
+      <ellipse cx="50" cy="80" rx="18" ry="6" fill="#5b21b6" />
 
       {/* Neck */}
-      <rect x="70" y="108" width="20" height="26" rx="4" fill="url(#skinGradient)" />
+      <rect x="43" y="65" width="14" height="16" rx="3" fill="url(#skin)" />
 
       {/* Face */}
-      <ellipse cx="80" cy="70" rx="44" ry="48" fill="url(#skinGradient)" />
+      <ellipse cx="50" cy="42" rx="28" ry="30" fill="url(#skin)" />
 
-      {/* Hair base */}
+      {/* Hair back */}
       <path
-        d="M36 62 Q36 18 80 12 Q124 18 124 62 Q124 38 110 30 Q80 18 50 30 Q36 38 36 62"
-        fill="url(#hairGradient)"
+        d="M22 38 Q22 10 50 6 Q78 10 78 38 Q78 22 68 16 Q50 8 32 16 Q22 22 22 38"
+        fill="url(#hair)"
       />
 
-      {/* Left hair - longer side tucked */}
-      <path
-        d="M36 62 Q32 78 36 98 Q40 102 44 94 Q40 78 44 62"
-        fill="url(#hairGradient)"
-      />
+      {/* Left hair strand */}
+      <path d="M22 38 Q18 50 22 62 Q26 66 28 58 Q24 48 28 38" fill="url(#hair)" />
+      {/* Pink tip left */}
+      <path d="M22 58 Q19 66 24 70" stroke="url(#pink)" stroke-width="4" stroke-linecap="round" fill="none" />
 
-      {/* Right hair - shorter asymmetric */}
-      <path
-        d="M124 62 Q128 72 126 82 Q123 86 120 78 Q122 70 120 62"
-        fill="url(#hairGradient)"
-      />
-
-      {/* Pink tips - left */}
-      <path
-        d="M36 94 Q33 102 38 108"
-        stroke="url(#pinkGradient)"
-        stroke-width="6"
-        stroke-linecap="round"
-        fill="none"
-      />
-
-      {/* Pink tips - right */}
-      <path
-        d="M126 78 Q128 86 124 90"
-        stroke="url(#pinkGradient)"
-        stroke-width="6"
-        stroke-linecap="round"
-        fill="none"
-      />
+      {/* Right hair */}
+      <path d="M78 38 Q82 46 80 52 Q77 54 75 48 Q77 44 75 38" fill="url(#hair)" />
+      {/* Pink tip right */}
+      <path d="M80 50 Q82 56 78 58" stroke="url(#pink)" stroke-width="4" stroke-linecap="round" fill="none" />
 
       {/* Bangs */}
       <path
-        d="M44 42 Q50 56 54 62 Q58 50 62 42 Q66 54 70 60 Q74 46 78 40 Q82 52 86 58 Q90 44 94 40 Q98 52 102 58 Q106 46 112 42 Q116 54 120 62"
-        fill="url(#hairGradient)"
+        d="M28 26 Q32 36 35 40 Q38 32 40 26 Q43 34 46 38 Q49 28 52 24 Q55 32 58 36 Q62 28 65 26 Q68 34 72 40"
+        fill="url(#hair)"
       />
-
-      {/* Pink streaks in bangs */}
-      <path d="M44 42 Q47 50 50 56" stroke="#ff6b9d" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.9"/>
-      <path d="M112 42 Q115 50 118 56" stroke="#ff6b9d" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.9"/>
+      {/* Pink streaks */}
+      <path d="M28 26 Q30 32 33 38" stroke="#f472b6" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.8" />
+      <path d="M68 28 Q70 34 72 40" stroke="#f472b6" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.8" />
 
       {/* Eyes */}
-      <g>
+      <g filter={props.isThinking ? "url(#glow)" : undefined}>
         {/* Left eye */}
         <ellipse
-          cx="62"
-          cy={78 + eyeOffset()}
-          rx="8"
-          ry="9"
+          cx="38"
+          cy={48 + eyeY()}
+          rx="5"
+          ry={eyeHeight()}
           fill="white"
+          style={{ transition: "ry 0.1s ease" }}
         />
         <ellipse
-          cx="64"
-          cy={80 + eyeOffset()}
-          rx="4"
-          ry="5"
-          fill="#1a1a1a"
+          cx="39"
+          cy={49 + eyeY()}
+          rx="2.5"
+          ry={blinkClosed() ? 0 : 3}
+          fill="#1c1c1e"
         />
-        <circle cx="66" cy={78 + eyeOffset()} r="1.5" fill="white" />
+        <circle cx="40" cy={47 + eyeY()} r="1" fill="white" opacity={blinkClosed() ? 0 : 1} />
 
         {/* Right eye */}
         <ellipse
-          cx="98"
-          cy={78 + eyeOffset()}
-          rx="8"
-          ry="8"
+          cx="62"
+          cy={48 + eyeY()}
+          rx="5"
+          ry={eyeHeight()}
           fill="white"
+          style={{ transition: "ry 0.1s ease" }}
         />
         <ellipse
-          cx="96"
-          cy={80 + eyeOffset()}
-          rx="4"
-          ry="5"
-          fill="#1a1a1a"
+          cx="61"
+          cy={49 + eyeY()}
+          rx="2.5"
+          ry={blinkClosed() ? 0 : 3}
+          fill="#1c1c1e"
         />
-        <circle cx="98" cy={78 + eyeOffset()} r="1.5" fill="white" />
+        <circle cx="62" cy={47 + eyeY()} r="1" fill="white" opacity={blinkClosed() ? 0 : 1} />
       </g>
 
       {/* Eyebrows */}
-      <path
-        d="M50 60 Q62 54 74 60"
-        stroke="#1a1a1a"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        fill="none"
-      />
-      <path
-        d="M86 62 Q98 58 110 62"
-        stroke="#1a1a1a"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        fill="none"
-      />
+      <path d="M31 38 Q38 34 45 38" stroke="#1c1c1e" stroke-width="1.5" stroke-linecap="round" fill="none" />
+      <path d="M55 39 Q62 36 69 39" stroke="#1c1c1e" stroke-width="1.5" stroke-linecap="round" fill="none" />
 
       {/* Nose */}
+      <path d="M50 50 Q51 55 50 58" stroke="#c9a080" stroke-width="1" stroke-linecap="round" fill="none" />
+
+      {/* Mouth */}
       <path
-        d="M80 82 Q82 90 80 94"
-        stroke="#b8956a"
+        d={props.isThinking ? "M44 64 Q50 66 56 63" : "M44 63 Q50 66 56 63"}
+        stroke="#b08968"
         stroke-width="1.5"
         stroke-linecap="round"
         fill="none"
       />
 
-      {/* Mouth - slight smirk */}
-      <path
-        d="M70 104 Q80 107 90 103"
-        stroke="#9b7456"
-        stroke-width="2"
-        stroke-linecap="round"
-        fill="none"
-      />
-
       {/* Earrings */}
-      <circle cx="36" cy="78" r="3" fill="#ffd700" />
-      <circle cx="36" cy="78" r="1.5" fill="none" stroke="#daa520" stroke-width="1" />
-      <circle cx="124" cy="78" r="3" fill="#ffd700" />
-      <circle cx="124" cy="78" r="1.5" fill="none" stroke="#daa520" stroke-width="1" />
+      <circle cx="22" cy="48" r="2" fill="#fcd34d" />
+      <circle cx="78" cy="48" r="2" fill="#fcd34d" />
 
       {/* Hoodie strings */}
-      <line x1="68" y1="138" x2="64" y2="160" stroke="#4a3875" stroke-width="1.5" opacity="0.7" />
-      <line x1="92" y1="138" x2="96" y2="160" stroke="#4a3875" stroke-width="1.5" opacity="0.7" />
+      <line x1="42" y1="84" x2="40" y2="100" stroke="#6d28d9" stroke-width="1" opacity="0.6" />
+      <line x1="58" y1="84" x2="60" y2="100" stroke="#6d28d9" stroke-width="1" opacity="0.6" />
     </svg>
   );
 }
