@@ -1,5 +1,6 @@
-import { createSignal, For, Show, onMount, createEffect } from "solid-js";
+import { createSignal, For, Show, onMount, createEffect, onCleanup } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { Kira } from "./components/Kira";
 import { Terminal } from "./components/Terminal";
 import "./App.css";
@@ -18,6 +19,11 @@ interface FrontendResponse {
   success: boolean;
 }
 
+interface StreamChunk {
+  content: string;
+  done: boolean;
+}
+
 function App() {
   const [messages, setMessages] = createSignal<Message[]>([]);
   const [input, setInput] = createSignal("");
@@ -28,16 +34,31 @@ function App() {
   const [isRunning, setIsRunning] = createSignal(false);
   const [apiKeySet, setApiKeySet] = createSignal(false);
   const [msgId, setMsgId] = createSignal(0);
+  const [streamingText, setStreamingText] = createSignal("");
+  const [isStreaming, setIsStreaming] = createSignal(false);
   let messagesEndRef: HTMLDivElement | undefined;
   let inputRef: HTMLInputElement | undefined;
 
-  createEffect(() => {
-    messages();
-    messagesEndRef?.scrollIntoView({ behavior: "smooth" });
+  // Listen for streaming chunks
+  onMount(async () => {
+    const unlisten = await listen<StreamChunk>("stream-chunk", (event) => {
+      const chunk = event.payload;
+
+      if (chunk.done) {
+        setIsStreaming(false);
+      } else if (chunk.content) {
+        setStreamingText((prev) => prev + chunk.content);
+      }
+    });
+
+    onCleanup(() => unlisten());
+    inputRef?.focus();
   });
 
-  onMount(() => {
-    inputRef?.focus();
+  createEffect(() => {
+    messages();
+    streamingText();
+    messagesEndRef?.scrollIntoView({ behavior: "smooth" });
   });
 
   async function sendMessage() {
@@ -49,9 +70,18 @@ function App() {
     setMessages((prev) => [...prev, { text: userMessage, isUser: true, id: newId }]);
     setInput("");
     setIsThinking(true);
+    setStreamingText("");
+    setIsStreaming(true);
 
     try {
       const reply = await invoke<FrontendResponse>("send_message", { message: userMessage });
+
+      // Add final message
+      const replyId = msgId() + 1;
+      setMsgId(replyId);
+      setMessages((prev) => [...prev, { text: reply.message, isUser: false, id: replyId }]);
+      setStreamingText("");
+      setIsStreaming(false);
 
       if (reply.command) {
         setTerminalCommand(reply.command);
@@ -65,14 +95,12 @@ function App() {
         }, 400);
         setTimeout(() => setTerminalVisible(false), 3500);
       }
-
-      const replyId = msgId() + 1;
-      setMsgId(replyId);
-      setMessages((prev) => [...prev, { text: reply.message, isUser: false, id: replyId }]);
     } catch (err) {
       const errId = msgId() + 1;
       setMsgId(errId);
-      setMessages((prev) => [...prev, { text: `${err}`, isUser: false, id: errId }]);
+      setMessages((prev) => [...prev, { text: `Error: ${err}`, isUser: false, id: errId }]);
+      setStreamingText("");
+      setIsStreaming(false);
     } finally {
       setIsThinking(false);
       inputRef?.focus();
@@ -92,11 +120,9 @@ function App() {
   return (
     <main class="app">
       <div class="window">
-        {/* Ambient glow effects */}
         <div class="glow glow-1"></div>
         <div class="glow glow-2"></div>
 
-        {/* KIRA - Always visible */}
         <div class="kira-section">
           <Kira isThinking={isThinking()} />
           <div class="kira-status">
@@ -105,7 +131,6 @@ function App() {
           </div>
         </div>
 
-        {/* Onboarding or Chat */}
         <Show when={!apiKeySet()}>
           <div class="onboarding-section">
             <h2>Hey, I'm KIRA</h2>
@@ -133,7 +158,6 @@ function App() {
         </Show>
 
         <Show when={apiKeySet()}>
-          {/* Messages */}
           <div class="messages-section">
             <Show when={messages().length === 0 && !isThinking()}>
               <div class="welcome">
@@ -160,18 +184,27 @@ function App() {
                   </div>
                 )}
               </For>
-              <Show when={isThinking()}>
+
+              {/* Streaming message - separate from messages array */}
+              <Show when={isStreaming() && streamingText()}>
+                <div class="msg msg-kira streaming">
+                  <p>{streamingText()}<span class="cursor">▋</span></p>
+                </div>
+              </Show>
+
+              {/* Typing indicator when waiting but no text yet */}
+              <Show when={isThinking() && !streamingText()}>
                 <div class="msg msg-kira typing-msg">
                   <div class="typing-dots">
                     <span></span><span></span><span></span>
                   </div>
                 </div>
               </Show>
+
               <div ref={messagesEndRef} />
             </div>
           </div>
 
-          {/* Input */}
           <div class="input-section">
             <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }}>
               <div class="input-group">

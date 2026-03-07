@@ -1,7 +1,7 @@
-use crate::llm::{self, AgentReply, Message};
+use crate::llm::{self, Message};
 use crate::terminal;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 pub struct AppState {
     pub messages: Mutex<Vec<Message>>,
@@ -10,6 +10,7 @@ pub struct AppState {
 
 #[tauri::command]
 pub async fn send_message(
+    app: AppHandle,
     message: String,
     state: State<'_, AppState>,
 ) -> Result<FrontendResponse, String> {
@@ -19,7 +20,7 @@ pub async fn send_message(
         return Err("Please set your API key first".to_string());
     }
 
-    // Block scope — lock is released when this block ends
+    // Add user message
     {
         let mut messages = state.messages.lock().unwrap();
         messages.push(Message {
@@ -29,20 +30,24 @@ pub async fn send_message(
     }
 
     let messages = state.messages.lock().unwrap().clone();
-    let reply: AgentReply = llm::chat(&api_key, &messages).await?;
 
+    // Use streaming chat
+    let reply = llm::chat_stream(app.clone(), &api_key, &messages).await?;
+
+    // Add assistant response to history
     {
         let mut messages = state.messages.lock().unwrap();
         messages.push(Message {
             role: "assistant".to_string(),
-            content: serde_json::to_string(&reply).unwrap(),
+            content: reply.message.clone(),
         });
     }
 
-    // if let Some(x) = "if command is not null, unwrap it into x"
+    // Handle command if present
     if let Some(command) = reply.command {
         let result = terminal::execute_command(&command);
 
+        // Add command result to history
         {
             let mut messages = state.messages.lock().unwrap();
             messages.push(Message {
@@ -51,8 +56,9 @@ pub async fn send_message(
             });
         }
 
+        // Get follow-up response (non-streaming for command results)
         let messages = state.messages.lock().unwrap().clone();
-        let final_reply: AgentReply = llm::chat(&api_key, &messages).await?;
+        let final_reply = llm::chat(&api_key, &messages).await?;
 
         return Ok(FrontendResponse {
             message: final_reply.message,
@@ -75,7 +81,7 @@ pub async fn send_message(
 #[tauri::command]
 pub fn set_api_key(key: String, state: State<'_, AppState>) {
     let mut api_key = state.api_key.lock().unwrap();
-    *api_key = key; // * = replace the value INSIDE the Mutex, not the Mutex itself
+    *api_key = key;
 }
 
 #[tauri::command]

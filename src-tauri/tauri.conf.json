@@ -11,7 +11,7 @@
   },
   "app": {
     "trayIcon": {
-      "iconPath": "icons/icon.png",
+      "iconPath": "icons/tray.png",
       "iconAsTemplate": true
     },
     "windows": [
