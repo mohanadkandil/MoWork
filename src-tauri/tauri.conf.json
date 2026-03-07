@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "mowork",
+  "productName": "KIRA",
   "version": "0.1.0",
-  "identifier": "com.mohannedkandil.mowork",
+  "identifier": "com.mohannedkandil.kira",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
@@ -10,13 +10,25 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true
+    },
     "windows": [
       {
-        "title": "mowork",
-        "width": 800,
-        "height": 600
+        "title": "KIRA",
+        "width": 480,
+        "height": 640,
+        "visible": false,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false
       }
     ],
+    "macOSPrivateApi": true,
     "security": {
       "csp": null
     }
@@ -30,6 +42,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
   }
 }

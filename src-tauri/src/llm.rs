@@ -85,8 +85,6 @@ pub async fn chat(api_key: &str, messages: &[Message]) -> Result<AgentReply, Str
         .map(|c| c.message.content.clone())
         .ok_or("No response from model")?;
 
-    println!("Raw API response: {}", content); // Debug: see what the LLM actually returns
-
     serde_json::from_str(&content).map_err(|e| e.to_string())
 }
 
