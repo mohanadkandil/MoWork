@@ -8,7 +8,7 @@ pub struct Message {
     pub content: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AgentReply {
     pub message: String,
     pub command: Option<String>,
@@ -40,7 +40,7 @@ pub async fn chat(api_key: &str, messages: &[Message]) -> Result<AgentReply, Str
     };
 
     let mut all_messages = vec![system];
-    all_messages.extend(messages);
+    all_messages.extend(messages.iter().cloned());
 
     let body = json!({
         "model": "minimax/minimax-m2.5",
@@ -69,6 +69,14 @@ pub async fn chat(api_key: &str, messages: &[Message]) -> Result<AgentReply, Str
         }
     });
 
+    let response = client
+        .post("https://openrouter.ai/api/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
     let parsed: OpenRouterResponse = response.json().await.map_err(|e| e.to_string())?;
 
     let content = parsed
@@ -77,5 +85,26 @@ pub async fn chat(api_key: &str, messages: &[Message]) -> Result<AgentReply, Str
         .map(|c| c.message.content.clone())
         .ok_or("No response from model")?;
 
-    serde_json::from_str(&content).map_err(|e| e.to_string())?
+    println!("Raw API response: {}", content); // Debug: see what the LLM actually returns
+
+    serde_json::from_str(&content).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_chat() {
+        dotenvy::dotenv().ok();
+        let api_key = std::env::var("OPENROUTER_API_KEY").expect("OPENROUTER_API_KEY not set");
+        let messages = vec![Message {
+            role: "user".to_string(),
+            content: "need to open vscode.".to_string(),
+        }];
+
+        let result = chat(&api_key, &messages).await;
+        println!("{:?}", result); // {:?} = debug print, like console.log
+        assert!(result.is_ok()); // like expect(result).toBeTruthy()
+    }
 }
