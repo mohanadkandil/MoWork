@@ -1,4 +1,5 @@
 use serde_json::Value;
+use std::process::Command;
 
 // Definition — what the model sees
 pub fn definition() -> Value {

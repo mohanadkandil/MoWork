@@ -1,7 +1,7 @@
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -170,57 +170,37 @@ fn parse_response(content: &str) -> (String, Option<String>) {
     (content.to_string(), None)
 }
 
-// Keep the non-streaming version for fallback
-pub async fn chat(api_key: &str, messages: &[Message]) -> Result<AgentReply, String> {
+// Chat with tools support - returns raw JSON response for agent loop
+pub async fn chat(api_key: &str, messages: &[Value], tools: &[Value]) -> Result<Value, String> {
     let client = Client::new();
 
-    let system = Message {
-        role: "system".to_string(),
-        content: SYSTEM_PROMPT.to_string(),
-    };
-
-    let mut all_messages = vec![system];
-    all_messages.extend(messages.iter().cloned());
-
-    let body = json!({
+    let mut body = json!({
         "model": "minimax/minimax-m2.5",
-        "messages": all_messages
+        "messages": messages
     });
+
+    // Only add tools if not empty
+    if !tools.is_empty() {
+        body["tools"] = json!(tools);
+    }
 
     let response = client
         .post("https://openrouter.ai/api/v1/chat/completions")
-        .header("Authorization", format!("Bearer {}", api_key))
+        .bearer_auth(api_key)
+        .header("Content-Type", "application/json")
+        .header("HTTP-Referer", "https://kira.app")
         .json(&body)
         .send()
         .await
         .map_err(|e| e.to_string())?;
 
-    #[derive(Deserialize)]
-    struct OpenRouterResponse {
-        choices: Vec<Choice>,
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("API error: {} - {}", status, error_text));
     }
 
-    #[derive(Deserialize)]
-    struct Choice {
-        message: ChoiceMessage,
-    }
-
-    #[derive(Deserialize)]
-    struct ChoiceMessage {
-        content: String,
-    }
-
-    let parsed: OpenRouterResponse = response.json().await.map_err(|e| e.to_string())?;
-
-    let content = parsed
-        .choices
-        .first()
-        .map(|c| c.message.content.clone())
-        .ok_or("No response from model")?;
-
-    let (message, command) = parse_response(&content);
-
-    Ok(AgentReply { message, command })
+    response.json::<Value>().await.map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -231,12 +211,12 @@ mod tests {
     async fn test_chat() {
         dotenvy::dotenv().ok();
         let api_key = std::env::var("OPENROUTER_API_KEY").expect("OPENROUTER_API_KEY not set");
-        let messages = vec![Message {
-            role: "user".to_string(),
-            content: "Say hello in 5 words".to_string(),
-        }];
+        let messages = vec![json!({
+            "role": "user",
+            "content": "Say hello in 5 words"
+        })];
 
-        let result = chat(&api_key, &messages).await;
+        let result = chat(&api_key, &messages, &[]).await;
         println!("{:?}", result);
         assert!(result.is_ok());
     }
