@@ -17,15 +17,17 @@
     "windows": [
       {
         "title": "KIRA",
-        "width": 480,
-        "height": 640,
+        "width": 380,
+        "height": 480,
         "visible": false,
-        "resizable": false,
+        "resizable": true,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "shadow": false
+        "shadow": false,
+        "minWidth": 320,
+        "minHeight": 400
       }
     ],
     "macOSPrivateApi": true,
