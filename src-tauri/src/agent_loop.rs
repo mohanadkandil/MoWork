@@ -1,4 +1,5 @@
 use crate::llm;
+use crate::memory;
 use crate::tools;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -30,7 +31,14 @@ pub async fn agent_loop(
     let tool_definitions = tools::all_tools();
 
     loop {
-        let response = llm::chat(api_key, &history, &tool_definitions).await?;
+        // Build memory context for each iteration (may change after memory_store calls)
+        let memory_context = memory::build_context();
+        let ctx = if memory_context.is_empty() {
+            None
+        } else {
+            Some(memory_context.as_str())
+        };
+        let response = llm::chat(api_key, &history, &tool_definitions, ctx).await?;
 
         let finish_reason = response
             .get("choices")
@@ -79,13 +87,16 @@ pub async fn agent_loop(
                     .unwrap_or(serde_json::json!({}));
 
                 // Emit "running" event
-                let _ = app.emit("tool-call", ToolCallEvent {
-                    id: tool_id.clone(),
-                    name: tool_name.clone(),
-                    args: tool_args.clone(),
-                    status: "running".to_string(),
-                    result: None,
-                });
+                let _ = app.emit(
+                    "tool-call",
+                    ToolCallEvent {
+                        id: tool_id.clone(),
+                        name: tool_name.clone(),
+                        args: tool_args.clone(),
+                        status: "running".to_string(),
+                        result: None,
+                    },
+                );
 
                 let result = tools::execute_tool(&tool_name, &tool_args);
 
@@ -95,13 +106,16 @@ pub async fn agent_loop(
                 };
 
                 // Emit "done" or "error" event
-                let _ = app.emit("tool-call", ToolCallEvent {
-                    id: tool_id.clone(),
-                    name: tool_name.clone(),
-                    args: tool_args,
-                    status: status.to_string(),
-                    result: Some(result_content.clone()),
-                });
+                let _ = app.emit(
+                    "tool-call",
+                    ToolCallEvent {
+                        id: tool_id.clone(),
+                        name: tool_name.clone(),
+                        args: tool_args,
+                        status: status.to_string(),
+                        result: Some(result_content.clone()),
+                    },
+                );
 
                 // Add each tool result to history
                 history.push(serde_json::json!({

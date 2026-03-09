@@ -170,13 +170,36 @@ fn parse_response(content: &str) -> (String, Option<String>) {
     (content.to_string(), None)
 }
 
+const SYSTEM_PROMPT_BASE: &str = r#"You are KIRA, a helpful AI assistant with access to the user's computer via tools.
+
+You can execute bash commands, search files, and help with development tasks.
+Be concise and helpful. When using tools, explain what you're doing briefly."#;
+
 // Chat with tools support - returns raw JSON response for agent loop
-pub async fn chat(api_key: &str, messages: &[Value], tools: &[Value]) -> Result<Value, String> {
+pub async fn chat(
+    api_key: &str,
+    messages: &[Value],
+    tools: &[Value],
+    memory_context: Option<&str>,
+) -> Result<Value, String> {
     let client = Client::new();
+
+    // Build system prompt with memory context
+    let system_prompt = match memory_context {
+        Some(ctx) if !ctx.is_empty() => format!("{}\n\n{}", SYSTEM_PROMPT_BASE, ctx),
+        _ => SYSTEM_PROMPT_BASE.to_string(),
+    };
+
+    // Prepend system message
+    let mut all_messages = vec![json!({
+        "role": "system",
+        "content": system_prompt
+    })];
+    all_messages.extend(messages.iter().cloned());
 
     let mut body = json!({
         "model": "minimax/minimax-m2.5",
-        "messages": messages
+        "messages": all_messages
     });
 
     // Only add tools if not empty
@@ -216,7 +239,7 @@ mod tests {
             "content": "Say hello in 5 words"
         })];
 
-        let result = chat(&api_key, &messages, &[]).await;
+        let result = chat(&api_key, &messages, &[], None).await;
         println!("{:?}", result);
         assert!(result.is_ok());
     }

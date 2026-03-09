@@ -1,6 +1,7 @@
 mod agent_loop;
 mod commands;
 mod llm;
+mod memory;
 mod terminal;
 mod tools;
 
